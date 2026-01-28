@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Maharashtra Crop Suggester</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial;
+        color: white;
+        text-shadow: 1px 1px 3px black;
+    }
+
+    /* -------- SLIDESHOW BACKGROUND -------- */
+    .slideshow {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: -1;
+    }
+
+    .slideshow img {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        animation: fade 24s infinite;
+        opacity: 0;
+    }
+
+    .slideshow img:nth-child(1) { animation-delay: 0s; }
+    .slideshow img:nth-child(2) { animation-delay: 6s; }
+    .slideshow img:nth-child(3) { animation-delay: 12s; }
+    .slideshow img:nth-child(4) { animation-delay: 18s; }
+
+    @keyframes fade {
+        0% { opacity: 0; }
+        10% { opacity: 1; }
+        30% { opacity: 1; }
+        40% { opacity: 0; }
+        100% { opacity: 0; }
+    }
+
+    /* -------- MAIN CARD -------- */
+    .container {
+        background: rgba(0,0,0,0.55);
+        padding: 25px;
+        width: 480px;
+        margin: 40px auto;
+        border-radius: 15px;
+        backdrop-filter: blur(5px);
+    }
+
+    select, button {
+        width: 100%;
+        padding: 12px;
+        margin-top: 10px;
+        border-radius: 8px;
+        font-size: 16px;
+    }
+
+    .crop-img {
+        width: 140px;
+        border-radius: 10px;
+        margin: 10px;
+        border: 2px solid white;
+    }
+
+    .crop-box {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    #rainfall-map {
+        width: 100%;
+        margin-top: 20px;
+        border-radius: 10px;
+        border: 2px solid white;
+        display: none;
+    }
+
+    .info-box {
+        margin-top: 15px;
+    }
+
+    .ai-score {
+        font-size: 18px;
+        font-weight: bold;
+        color: #ffdd57;
+    }
+</style>
+</head>
+<body>
+
+<!-- -------- SLIDESHOW IMAGES -------- -->
+<div class="slideshow">
+    <img src="https://images.unsplash.com/photo-1500382017468-9049fed747ef">
+    <img src="https://images.unsplash.com/photo-1501004318641-b39e6451bec6">
+    <img src="https://images.unsplash.com/photo-1471193945509-9ad0617afabf">
+    
+</div>
+
+<div class="container">
+    <h2>🌾 Maharashtra Crop Suggester</h2>
+
+    <label>Select District:</label>
+    <select id="district">
+        <option>Select...</option>
+        <option>Ahmednagar</option>
+        <option>Akola</option>
+        <option>Amravati</option>
+        <option>Aurangabad</option>
+        <option>Beed</option>
+        <option>Bhandara</option>
+        <option>Buldhana</option>
+        <option>Chandrapur</option>
+        <option>Dhule</option>
+        <option>Gadchiroli</option>
+        <option>Gondia</option>
+        <option>Hingoli</option>
+        <option>Jalgaon</option>
+        <option>Jalna</option>
+        <option>Kolhapur</option>
+        <option>Latur</option>
+        <option>Mumbai City</option>
+        <option>Mumbai Suburban</option>
+        <option>Nagpur</option>
+        <option>Nanded</option>
+        <option>Nandurbar</option>
+        <option>Nashik</option>
+        <option>Osmanabad</option>
+        <option>Palghar</option>
+        <option>Parbhani</option>
+        <option>Pune</option>
+        <option>Raigad</option>
+        <option>Ratnagiri</option>
+        <option>Sangli</option>
+        <option>Satara</option>
+        <option>Sindhudurg</option>
+        <option>Solapur</option>
+        <option>Thane</option>
+        <option>Wardha</option>
+        <option>Washim</option>
+        <option>Yavatmal</option>
+    </select>
+
+    <button onclick="suggestCrop()">Get Crop Suggestion</button>
+
+    <div id="result" class="info-box"></div>
+
+    <div id="crop-images"></div>
+
+    <img id="rainfall-map" src="images/maha_rain.png">
+</div>
+
+<script>
+/* -------- DISTRICT DATA WITH SOIL AND WATER -------- */
+const districtData = {
+    "Dhule": {soil:"Black Cotton Soil", water:"Medium Hardness", crops:["Cotton","Banana"]},
+    "Pune": {soil:"Laterite + Black Soil", water:"Good Water Quality", crops:["Wheat"]},
+    "Nagpur": {soil:"Red + Black Soil", water:"Medium Quality", crops:["Cotton","Rice"]},
+    "Ahmednagar": {soil:"Deep Black Soil", water:"Good Water Quality", crops:["Wheat","Cotton"]},
+    "Akola": {soil:"Medium Black", water:"Semi-Critical", crops:["Cotton","Pomegranate"]},
+    "Amravati": {soil:"Deep Black Soil", water:"Safe", crops:["Cotton","Wheat"]},
+    "Aurangabad": {soil:"Deep Black Soil", water:"Semi-Critical", crops:["Cotton","Banana"]},
+    "Beed": {soil:"Black Cotton", water:"Critical", crops:["Cotton","Wheat"]},
+    "Bhandara": {soil:"Alluvial", water:"Safe", crops:["Rice","Banana"]},
+    "Buldhana": {soil:"Black Cotton", water:"Semi-Critical", crops:["Cotton","Pomegranate"]},
+    "Chandrapur": {soil:"Black & Red Mix", water:"Semi-Critical", crops:["Rice","Cotton"]},
+    "Gadchiroli": {soil:"Red Soil", water:"Safe", crops:["Rice"]},
+    "Gondia": {soil:"Alluvial", water:"Safe", crops:["Rice"]},
+    "Hingoli": {soil:"Black Cotton", water:"Safe", crops:["Cotton"]},
+    "Jalgaon": {soil:"Black Cotton", water:"Semi-Critical", crops:["Banana","Cotton"]},
+    "Jalna": {soil:"Medium Black", water:"Semi-Critical", crops:["Cotton","Wheat"]},
+    "Kolhapur": {soil:"Lateritic", water:"Safe", crops:["Rice","Banana"]},
+    "Latur": {soil:"Deep Black", water:"Critical", crops:["Cotton","Wheat"]},
+    "Mumbai City": {soil:"Coastal Alluvial", water:"Safe", crops:["Banana"]},
+    "Mumbai Suburban": {soil:"Coastal Alluvial", water:"Safe", crops:["Banana"]},
+    "Nanded": {soil:"Medium Black", water:"Safe", crops:["Cotton","Wheat"]},
+    "Nandurbar": {soil:"Sandy Loam", water:"Safe", crops:["Cotton"]},
+    "Nashik": {soil:"Black Cotton", water:"Safe", crops:["Grapes","Wheat"]},
+    "Osmanabad": {soil:"Black Cotton", water:"Critical", crops:["Cotton"]},
+    "Palghar": {soil:"Lateritic", water:"Safe", crops:["Rice"]},
+    "Parbhani": {soil:"Black Cotton", water:"Safe", crops:["Cotton"]},
+    "Raigad": {soil:"Lateritic", water:"Safe", crops:["Rice"]},
+    "Ratnagiri": {soil:"Lateritic", water:"Safe", crops:["Rice"]},
+    "Sangli": {soil:"Black Cotton", water:"Semi-Critical", crops:["Wheat"]},
+    "Satara": {soil:"Red + Black Mix", water:"Safe", crops:["Wheat"]},
+    "Sindhudurg": {soil:"Lateritic", water:"Safe", crops:["Rice"]},
+    "Solapur": {soil:"Deep Black", water:"Critical", crops:["Cotton"]},
+    "Thane": {soil:"Lateritic & Alluvial", water:"Safe", crops:["Rice"]},
+    "Wardha": {soil:"Medium Black", water:"Semi-Critical", crops:["Cotton"]},
+    "Washim": {soil:"Black Cotton", water:"Semi-Critical", crops:["Cotton"]},
+    "Yavatmal": {soil:"Deep Black", water:"Critical", crops:["Cotton"]}
+};
+
+/* -------- CROP IMAGES -------- */
+const cropImages = {
+    "Rice": "images/rice.jpg",
+    "Wheat": "images/wheat.jpg",
+    "Cotton": "images/cotton.jpg",
+    "Banana": "images/banana.jpg",
+    "Pomegranate": "images/pomegranate.png"
+};
+
+/* -------- SUGGEST FUNCTION -------- */
+function suggestCrop() {
+    let dist = document.getElementById("district").value;
+    if (!districtData[dist]) { alert("Please select a district!"); return; }
+
+    let data = districtData[dist];
+    // AI crop score
+    let score = Math.floor(Math.random()*101);
+
+    document.getElementById("result").innerHTML = `
+        🌱 Recommended Crops for <b>${dist}</b>: ${data.crops.join(", ")} <br>
+        🧪 Soil: ${data.soil} <br>
+        💧 Water Quality: ${data.water} <br>
+        ⛈️ AI Crop Score: <span class="ai-score">${score}/100</span>
+    `;
+
+    // Crop images
+    let imgDiv = document.getElementById("crop-images");
+    imgDiv.innerHTML = "";
+    data.crops.forEach(crop => {
+        if (cropImages[crop]) {
+            imgDiv.innerHTML += `
+                <div class="crop-box">
+                    <img class="crop-img" src="${cropImages[crop]}">
+                    <p>${crop}</p>
+                </div>
+            `;
+        }
+    });
+
+    // Show rainfall map
+    document.getElementById("rainfall-map").style.display = "block";
+}
+</script>
+
+</body>
+</html>
